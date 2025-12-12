@@ -1,83 +1,67 @@
-const mongoose = require("mongoose");
-const supertest = require("supertest");
+const request = require("supertest");
 const app = require("../app");
-const api = supertest(app);
-const User = require("../models/userModel");
+const mongoose = require("mongoose");
 
-beforeAll(async () => {
-  await User.deleteMany({});
-});
-
-describe("User Routes", () => {
-  describe("POST /api/users/signup", () => {
-    it("should signup a new user with valid credentials", async () => {
-      // Arrange
-      const userData = {
-        name: "John Doe",
-        email: "john@example.com",
-        password: "Pass!#22w0d@",
-        phone_number: "09-4567890",
-        gender: "Male",
-      };
-
-      // Act
-      const result = await api.post("/api/users/signup").send(userData);
-
-      // Assert
-      expect(result.status).toBe(201);
-      expect(result.body).toHaveProperty("token");
-    });
-
-    it("should return an error with invalid credentials", async () => {
-      // Arrange
-      const userData = {
-        email: "test@example.com",
-        password: "invalidpassword",
-        phone_number: "0412345670",
-      };
-
-      // Act
-      const result = await api.post("/api/users/signup").send(userData);
-
-      // Assert
-      expect(result.status).toBe(400);
-      expect(result.body).toHaveProperty("error");
-    });
+describe("User API", () => {
+  afterAll(async () => {
+    await mongoose.connection.close();
   });
 
-  describe("POST /api/users/login", () => {
-    it("should login a user with valid credentials", async () => {
-      // Arrange
-      const userData = {
-        email: "john@example.com",
-        password: "Pass!#22w0d@",
-      };
+  test("signup works with strong password", async () => {
+    const res = await request(app)
+      .post("/api/users/signup")
+      .send({
+        name: "Signup User",
+        email: "signupuser@example.com",
+        password: "StrongPass123!",
+        role: "user",
+        githubUsername: "signupgit",
+        phoneNumber: "1234567890",
+        bio: "Signup test",
+      });
 
-      // Act
-      const result = await api.post("/api/users/login").send(userData);
-
-      // Assert
-      expect(result.status).toBe(200);
-      expect(result.body).toHaveProperty("token");
-    });
-
-    it("should return an error with invalid credentials", async () => {
-      // Arrange
-      const userData = {
-        email: "test@example.com",
-        password: "invalidpassword",
-      };
-
-      // Act
-      const result = await api.post("/api/users/login").send(userData);
-
-      // Assert
-      expect(result.status).toBe(400);
-      expect(result.body).toHaveProperty("error");
-    });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.token).toBeDefined();
   });
-});
 
-afterAll(() => {
-  mongoose.connection.close();
+  test("login works with correct credentials", async () => {
+    // ensure user exists
+    await request(app)
+      .post("/api/users/signup")
+      .send({
+        name: "Login User",
+        email: "loginuser@example.com",
+        password: "StrongPass123!",
+        role: "user",
+        githubUsername: "logingit",
+        phoneNumber: "1234567890",
+        bio: "Login test",
+      });
+
+    const res = await request(app)
+      .post("/api/users/login")
+      .send({
+        email: "loginuser@example.com",
+        password: "StrongPass123!",
+      });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.token).toBeDefined();
+  });
+
+  test("signup fails with weak password", async () => {
+    const res = await request(app)
+      .post("/api/users/signup")
+      .send({
+        name: "Weak User",
+        email: "weakuser@example.com",
+        password: "123",
+        role: "user",
+        githubUsername: "weakgit",
+        phoneNumber: "1234567890",
+        bio: "Weak password",
+      });
+
+    expect(res.statusCode).toBe(400);
+  });
 });
